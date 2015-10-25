@@ -28,11 +28,11 @@ module XMonad.Config (defaultConfig, Default(..)) where
 import XMonad.Core as XMonad hiding
     (workspaces,manageHook,keys,logHook,startupHook,borderWidth,mouseBindings
     ,layoutHook,modMask,terminal,normalBorderColor,focusedBorderColor,focusFollowsMouse
-    ,handleEventHook,clickJustFocuses,rootMask,clientMask)
+    ,handleEventHook,clickJustFocuses,rootMask,clientMask,qubesColors)
 import qualified XMonad.Core as XMonad
     (workspaces,manageHook,keys,logHook,startupHook,borderWidth,mouseBindings
     ,layoutHook,modMask,terminal,normalBorderColor,focusedBorderColor,focusFollowsMouse
-    ,handleEventHook,clickJustFocuses,rootMask,clientMask)
+    ,handleEventHook,clickJustFocuses,rootMask,clientMask,qubesColors)
 
 import XMonad.Layout
 import XMonad.Operations
@@ -40,6 +40,7 @@ import XMonad.ManageHook
 import qualified XMonad.StackSet as W
 import Data.Bits ((.|.))
 import Data.Default
+import Data.Maybe (fromMaybe)
 import Data.Monoid
 import qualified Data.Map as M
 import System.Exit
@@ -252,6 +253,14 @@ mouseBindings (XConfig {XMonad.modMask = modMask}) = M.fromList
     -- you may also bind events to the mouse scroll wheel (button4 and button5)
     ]
 
+-- | Default color mapping for Qubes domains
+qubesColors :: QubesWindowData -> (String, String)
+qubesColors qd = fromMaybe ("#dcdcdc", "#909090") . lookup (qubesLabel qd) $ colors
+    where colors = zip [1..] [("#dc2f2f","#901f1f"), ("#ff8000","#b25900"),
+                              ("#dcdc04","#909003"), ("#04c804","#027c02"),
+                              ("#969696","#4a4a4a"), ("#2f69dc","#1f4490"),
+                              ("#630063","#170017"), ("#000000","#202020")]
+
 instance (a ~ Choose Tall (Choose (Mirror Tall) Full)) => Default (XConfig a) where
   def = XConfig
     { XMonad.borderWidth        = borderWidth
@@ -274,6 +283,7 @@ instance (a ~ Choose Tall (Choose (Mirror Tall) Full)) => Default (XConfig a) wh
     , XMonad.handleExtraArgs = \ xs theConf -> case xs of
                 [] -> return theConf
                 _ -> fail ("unrecognized flags:" ++ show xs)
+    , XMonad.qubesColors = qubesColors
     }
 
 -- | The default set of configuration values itself

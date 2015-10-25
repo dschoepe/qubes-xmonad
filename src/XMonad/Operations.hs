@@ -100,6 +100,32 @@ kill = withFocused killWindow
 -- ---------------------------------------------------------------------
 -- Managing windows
 
+getStringProperty :: Display -> Window -> String -> X (Maybe String)
+getStringProperty d w p = do
+  a  <- getAtom p
+  md <- io $ getWindowProperty8 d a w
+  return $ fmap (map (toEnum . fromIntegral)) md
+
+getInt8Property :: Display -> Window -> String -> X (Maybe Integer)
+getInt8Property d w p = do
+  a <- getAtom p
+  md <- io $ getWindowProperty8 d a w
+  case md of
+    Just [l] -> return . Just $ fromIntegral l
+    _ -> return Nothing
+
+getQubesData :: Window -> X QubesWindowData
+getQubesData w = do
+  dpy <- asks display
+  vmN <- getStringProperty dpy w "_QUBES_VMNAME"
+  vmL <- getInt8Property dpy w "_QUBES_LABEL"
+  return QubesWindowData { qubesVMName = fromMaybe "dom0" vmN,
+                           qubesLabel = fromMaybe 0 vmL }
+
+-- | Get the border color for given w.
+qubesWindowColor :: Window -> X (String, String)
+qubesWindowColor w = asks (qubesColors . config) `ap` getQubesData w
+
 -- | windows. Modify the current window list with a pure function, and refresh
 windows :: (WindowSet -> WindowSet) -> X ()
 windows f = do
@@ -107,11 +133,13 @@ windows f = do
     let oldvisible = concatMap (W.integrate' . W.stack . W.workspace) $ W.current old : W.visible old
         newwindows = W.allWindows ws \\ W.allWindows old
         ws = f old
-    XConf { display = d , normalBorder = nbc, focusedBorder = fbc } <- ask
+    XConf { display = d } <- ask
 
     mapM_ setInitialProperties newwindows
 
-    whenJust (W.peek old) $ \otherw -> io $ setWindowBorder d otherw nbc
+    whenJust (W.peek old) $ \otherw -> do
+              c <- stringToPixel d . snd =<< qubesWindowColor otherw
+              io $ setWindowBorder d otherw c
     modify (\s -> s { windowset = ws })
 
     -- notify non visibility
@@ -151,7 +179,9 @@ windows f = do
 
     mapM_ (uncurry tileWindow) rects
 
-    whenJust (W.peek ws) $ \w -> io $ setWindowBorder d w fbc
+    whenJust (W.peek ws) $ \w -> do
+              c <- stringToPixel d . fst =<< qubesWindowColor w
+              io $ setWindowBorder d w c
 
     mapM_ reveal visible
     setTopFocus
@@ -204,14 +234,15 @@ reveal w = withDisplay $ \d -> do
 
 -- | Set some properties when we initially gain control of a window
 setInitialProperties :: Window -> X ()
-setInitialProperties w = asks normalBorder >>= \nb -> withDisplay $ \d -> do
+setInitialProperties w = withDisplay $ \d -> do
     setWMState w iconicState
     asks (clientMask . config) >>= io . selectInput d w
     bw <- asks (borderWidth . config)
     io $ setWindowBorderWidth d w bw
     -- we must initially set the color of new windows, to maintain invariants
     -- required by the border setting in 'windows'
-    io $ setWindowBorder d w nb
+    colorPixel <- stringToPixel d . fst =<< qubesWindowColor w
+    io $ setWindowBorder d w colorPixel
 
 -- | refresh. Render the currently visible workspaces, as determined by
 -- the 'StackSet'. Also, set focus to the focused window.
@@ -420,6 +451,14 @@ initColor :: Display -> String -> IO (Maybe Pixel)
 initColor dpy c = C.handle (\(C.SomeException _) -> return Nothing) $
     (Just . color_pixel . fst) <$> allocNamedColor dpy colormap c
     where colormap = defaultColormap dpy (defaultScreen dpy)
+
+-- | Get the Pixel value for a named color: if an invalid name is
+-- given the black pixel will be returned.
+-- (taken from XMonad.Util.Font in xmonad-contrib)
+stringToPixel :: (Functor m, MonadIO m) => Display -> String -> m Pixel
+stringToPixel d s = fromMaybe fallBack <$> io getIt
+    where getIt    = initColor d s
+          fallBack = blackPixel d (defaultScreen d)
 
 ------------------------------------------------------------------------
 

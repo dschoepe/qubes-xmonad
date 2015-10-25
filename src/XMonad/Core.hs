@@ -19,7 +19,7 @@
 module XMonad.Core (
     X, WindowSet, WindowSpace, WorkspaceId,
     ScreenId(..), ScreenDetail(..), XState(..),
-    XConf(..), XConfig(..), LayoutClass(..),
+    XConf(..), XConfig(..), LayoutClass(..), QubesWindowData(..),
     Layout(..), readsLayout, Typeable, Message,
     SomeMessage(..), fromMessage, LayoutMessages(..),
     StateExtension(..), ExtensionClass(..),
@@ -116,8 +116,14 @@ data XConfig l = XConfig
     , rootMask           :: !EventMask           -- ^ The root events that xmonad is interested in
     , handleExtraArgs    :: !([String] -> XConfig Layout -> IO (XConfig Layout))
                                                  -- ^ Modify the configuration, complain about extra arguments etc. with arguments that are not handled by default
+    , qubesColors        :: QubesWindowData -> (String, String) -- ^ Return the preferred active and inactive border color
     }
 
+-- | Qubes-related window data.
+data QubesWindowData =
+    QubesWindowData { qubesVMName :: String -- ^ Name of the VM that created the window
+                    , qubesLabel :: Integer -- ^ Corresponding VM label
+                    }
 
 type WindowSet   = StackSet  WorkspaceId (Layout Window) Window ScreenId ScreenDetail
 type WindowSpace = Workspace WorkspaceId (Layout Window) Window

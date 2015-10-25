@@ -27,7 +27,7 @@ import Control.Monad.Reader
 import Data.Maybe
 import Data.Monoid
 import qualified XMonad.StackSet as W
-import XMonad.Operations (floatLocation, reveal)
+import XMonad.Operations (floatLocation, reveal, getStringProperty)
 
 -- | Lift an 'X' action to a 'Query'.
 liftX :: X a -> Query a
@@ -95,12 +95,6 @@ className = ask >>= (\w -> liftX $ withDisplay $ \d -> fmap resClass $ io $ getC
 --   identified by name.
 stringProperty :: String -> Query String
 stringProperty p = ask >>= (\w -> liftX $ withDisplay $ \d -> fmap (fromMaybe "") $ getStringProperty d w p)
-
-getStringProperty :: Display -> Window -> String -> X (Maybe String)
-getStringProperty d w p = do
-  a  <- getAtom p
-  md <- io $ getWindowProperty8 d a w
-  return $ fmap (map (toEnum . fromIntegral)) md
 
 -- | Modify the 'WindowSet' with a pure function.
 doF :: (s -> s) -> Query (Endo s)
